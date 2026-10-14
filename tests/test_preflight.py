@@ -60,6 +60,27 @@ class TestPreflight(unittest.TestCase):
         self.assertTrue(order_checks and not order_checks[0].ok)
         self.assertEqual(client.created, [])  # never placed on live
 
+    def test_test_order_reject_is_reported_and_not_closed(self):
+        client = FakeRestClient(environment="demo")
+        client.reject_reason = "INSUFFICIENT_FUNDS"
+        results = run_preflight(_config(), _creds("demo"), client=client, test_order=True)
+        open_checks = [r for r in results if r.name == "test order open"]
+        self.assertTrue(open_checks and not open_checks[0].ok)
+        self.assertIn("INSUFFICIENT_FUNDS", open_checks[0].detail)
+        self.assertEqual(client.closed, [])
+
+    def test_market_details_failure_is_captured(self):
+        client = FakeRestClient()
+
+        def boom(epic):
+            raise RuntimeError(f"{epic} unavailable")
+
+        client.get_market_details = boom
+        results = run_preflight(_config(), _creds(), client=client)
+        md = [r for r in results if r.name == "market details"]
+        self.assertTrue(md and not md[0].ok)
+        self.assertIn("EURUSD unavailable", md[0].detail)
+
 
 if __name__ == "__main__":
     unittest.main()

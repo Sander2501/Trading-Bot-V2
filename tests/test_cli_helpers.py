@@ -89,5 +89,15 @@ class TestFrozenSetupCheck(unittest.TestCase):
             self.assertIsNone(_frozen_setup_check(self._cfg(), Path(d) / "nope.json"))
 
 
+class TestRunProfiles(unittest.TestCase):
+    def test_live_safe_profile_tightens_risk(self):
+        from forex_bot.cli import _apply_run_profile
+        cfg = TradingConfig(instruments=[InstrumentConfig("EURUSD", "HOUR_4")])
+        _apply_run_profile(cfg, "live-safe")
+        self.assertLessEqual(cfg.risk.max_position_pct, 0.05)
+        self.assertLessEqual(cfg.risk.max_daily_loss_pct, 0.02)
+        self.assertEqual(cfg.risk.max_spread_multiple, 1.5)
+
+
 if __name__ == "__main__":
     unittest.main()

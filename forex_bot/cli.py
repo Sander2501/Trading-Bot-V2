@@ -50,6 +50,65 @@ def _instruments_from_args(config: TradingConfig, args):
     return config.instruments
 
 
+def _apply_run_profile(config: TradingConfig, profile: str) -> None:
+    """Apply conservative presets for demo/live/research run modes."""
+    profile = profile.lower()
+    if profile == "research":
+        config.risk.max_spread_multiple = None
+        config.risk.max_daily_loss_pct = min(config.risk.max_daily_loss_pct, 0.10)
+    elif profile == "demo-safe":
+        config.risk.max_spread_multiple = config.risk.max_spread_multiple or 2.0
+        config.risk.max_daily_loss_pct = min(config.risk.max_daily_loss_pct, 0.03)
+        config.risk.max_position_pct = min(config.risk.max_position_pct, 0.10)
+    elif profile == "live-safe":
+        config.risk.max_spread_multiple = config.risk.max_spread_multiple or 1.5
+        config.risk.max_daily_loss_pct = min(config.risk.max_daily_loss_pct, 0.02)
+        config.risk.max_position_pct = min(config.risk.max_position_pct, 0.05)
+    else:
+        raise ValueError(f"unknown profile '{profile}'")
+
+
+def cmd_validate_env(args: argparse.Namespace) -> int:
+    from .startup_checks import all_checks_passed, format_startup_checks, run_startup_checks
+
+    config = _load_config(args.config)
+    creds = CapitalCredentials.from_env()
+    if creds.environment != args.environment:
+        creds.environment = args.environment
+    checks = run_startup_checks(
+        config,
+        creds,
+        data_dir=args.data_dir,
+        max_data_age_hours=args.max_data_age_hours,
+    )
+    print("\n" + format_startup_checks(checks) + "\n")
+    return 0 if all_checks_passed(checks) else 1
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    from .monitoring import TelemetryStore
+
+    config = _load_config(args.config)
+    telemetry = TelemetryStore(config.telemetry_path).load()
+    print("\n=== Live Runtime Dashboard ===")
+    print(f"updated               : {telemetry.last_updated}")
+    print(f"last equity           : {telemetry.last_equity:.2f}")
+    print(f"peak equity           : {telemetry.peak_equity:.2f}")
+    print(f"drawdown              : {telemetry.drawdown_pct:.2f}%")
+    print(f"open positions        : {telemetry.open_positions}")
+    print(f"kill-switch trips     : {telemetry.kill_switch_trips}")
+    print(f"order rejects         : {telemetry.order_rejects}")
+    print(f"ws reconnects         : {telemetry.ws_reconnects}")
+    print(f"execution halts       : {telemetry.execution_halts}")
+    print(f"PnL drift alerts      : {telemetry.pnl_drift_alerts}")
+    if telemetry.recent_events:
+        print("\nrecent events:")
+        for event in telemetry.recent_events[-10:]:
+            print(f"  - {event}")
+    print()
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 def cmd_download(args: argparse.Namespace) -> int:
     from .data.storage import CandleStore
@@ -649,9 +708,11 @@ def _frozen_setup_check(config, registry_path) -> str | None:
 
 def cmd_run(args: argparse.Namespace, environment: str) -> int:
     from .live_engine import LiveTradingEngine
+    from .startup_checks import all_checks_passed, format_startup_checks, run_startup_checks
     from .strategy import build_strategy
 
     config = _load_config(args.config)
+    _apply_run_profile(config, args.profile)
 
     reason = _frozen_setup_check(config, getattr(args, "registry", "research/registry.json"))
     if reason is not None:
@@ -682,6 +743,18 @@ def cmd_run(args: argparse.Namespace, environment: str) -> int:
         log.warning("overriding environment from config/env",
                     extra={"requested": environment, "env_value": creds.environment})
         creds.environment = environment
+
+    checks = run_startup_checks(
+        config,
+        creds,
+        data_dir=args.data_dir,
+        max_data_age_hours=args.max_data_age_hours,
+    )
+    if not all_checks_passed(checks):
+        log.error("startup checks failed",
+                  extra={"details": format_startup_checks(checks).replace("\n", " | ")})
+        lock.release()
+        return 2
 
     if environment == "live":
         log.warning("LIVE TRADING ENABLED — real funds at risk")
@@ -818,6 +891,15 @@ def build_parser() -> argparse.ArgumentParser:
     _add_epics(sc)
     sc.set_defaults(func=cmd_screen)
 
+    vd = sub.add_parser("validate-env", help="run startup environment checks")
+    vd.add_argument("--environment", choices=["demo", "live"], default="demo")
+    vd.add_argument("--max-data-age-hours", type=int, default=48,
+                    help="max allowed age for local candle files")
+    vd.set_defaults(func=cmd_validate_env)
+
+    db = sub.add_parser("dashboard", help="show live runtime telemetry")
+    db.set_defaults(func=cmd_dashboard)
+
     pf = sub.add_parser("preflight", help="validate the live broker path with real credentials")
     pf.add_argument("--environment", choices=["demo", "live"], default="demo")
     pf.add_argument("--test-order", action="store_true",
@@ -830,6 +912,11 @@ def build_parser() -> argparse.ArgumentParser:
         parser.add_argument("--force", action="store_true",
                             help="launch even if this (strategy, setup) is FROZEN "
                                  "(holdout-fail/retired) in the research registry")
+        parser.add_argument("--profile", default="demo-safe",
+                            choices=["research", "demo-safe", "live-safe"],
+                            help="runtime risk preset applied before launch")
+        parser.add_argument("--max-data-age-hours", type=int, default=48,
+                            help="max allowed age for local candle files")
 
     demo = sub.add_parser("demo", help="run live engine against the demo environment")
     _add_run_flags(demo)

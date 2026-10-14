@@ -157,6 +157,8 @@ class WalkForwardResult:
     by_instrument: list[InstrumentBreakdown] = field(default_factory=list)
     by_period: list[PeriodBreakdown] = field(default_factory=list)
     starting_equity: float = 10_000.0
+    param_stability_pct: float = 0.0
+    unstable_params: list[str] = field(default_factory=list)
 
     def to_text(self) -> str:
         lines = [
@@ -168,6 +170,7 @@ class WalkForwardResult:
             f"  OOS trades (pooled)   : {self.total_oos_trades}",
             f"  OOS profit factor     : {self.combined_profit_factor:.2f}",
             f"  OOS win rate          : {self.combined_win_rate_pct:.2f}%",
+            f"  param stability       : {self.param_stability_pct:.1f}%",
             "",
             "  fold  in-sample -> out-of-sample        best params"
             "                          OOS ret%  trades  PF",
@@ -209,6 +212,9 @@ class WalkForwardResult:
                     f"{b.profit_factor:>6.2f} {b.win_rate_pct:>7.1f} "
                     f"{b.avg_r_multiple:>7.2f} {b.avg_holding_hours:>7.1f}"
                 )
+        if self.unstable_params:
+            lines.append("")
+            lines.append("  unstable parameters: " + ", ".join(self.unstable_params))
         return "\n".join(lines)
 
 
@@ -562,6 +568,7 @@ def _summarize(
     result.r_multiple_trades = sum(1 for t in pooled if t.r_multiple is not None)
     result.by_instrument = _instrument_breakdown(pooled, result.starting_equity)
     result.by_period = _period_breakdown(pooled, result.starting_equity)
+    result.param_stability_pct, result.unstable_params = _parameter_stability(result.folds)
     if fold_returns:
         # Chain per-fold returns to a compounded combined OOS return.
         compounded = 1.0
@@ -571,6 +578,29 @@ def _summarize(
         result.avg_fold_return_pct = sum(fold_returns) / len(fold_returns)
         positive = sum(1 for r in fold_returns if r > 0)
         result.pct_positive_folds = positive / len(fold_returns) * 100.0
+
+
+def _parameter_stability(folds: list[Fold]) -> tuple[float, list[str]]:
+    if not folds:
+        return 0.0, []
+    values: dict[str, list[str]] = {}
+    for fold in folds:
+        for key, val in fold.best_params.items():
+            values.setdefault(key, []).append(str(val))
+    if not values:
+        return 100.0, []
+    stability_scores: list[float] = []
+    unstable: list[str] = []
+    for key, vals in values.items():
+        counts: dict[str, int] = {}
+        for v in vals:
+            counts[v] = counts.get(v, 0) + 1
+        top = max(counts.values())
+        stability = (top / len(vals)) * 100.0
+        stability_scores.append(stability)
+        if stability < 50.0:
+            unstable.append(key)
+    return sum(stability_scores) / len(stability_scores), sorted(unstable)
 
 
 
