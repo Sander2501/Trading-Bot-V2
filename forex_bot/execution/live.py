@@ -7,6 +7,8 @@ the live engine.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from ..api.rest_client import CapitalRestClient
 from ..logging_setup import get_logger
 from ..models import Order
@@ -30,7 +32,15 @@ class LiveExecution(ExecutionEngine):
     def __init__(self, client: CapitalRestClient) -> None:
         self.client = client
 
-    def execute(self, order: Order, *, reference_price: float) -> Fill:
+    def execute(
+        self,
+        order: Order,
+        *,
+        reference_price: float,
+        timestamp: datetime | None = None,
+        volatility_ratio: float | None = None,
+        stress_multiplier: float = 1.0,
+    ) -> Fill:
         # Idempotency guard. Capital.com's create-position has no client-supplied
         # order id, so a create whose response was lost (network blip) cannot be
         # de-duplicated by the broker. Before opening, reconcile against live

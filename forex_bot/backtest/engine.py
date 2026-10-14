@@ -55,6 +55,7 @@ class Backtester:
         *,
         execution: ExecutionEngine | None = None,
         max_history: int = 1000,
+        stress_multiplier: float = 1.0,
     ) -> None:
         self.strategy = strategy
         self.config = config
@@ -75,6 +76,7 @@ class Backtester:
         self._signals = 0
         self._fills = 0
         self._kill_flattened = False
+        self.stress_multiplier = stress_multiplier
 
     # ------------------------------------------------------------------ #
     def run(self, candles_by_epic: dict[str, list[Candle]]) -> BacktestResult:
@@ -255,7 +257,13 @@ class Backtester:
 
     # ------------------------------------------------------------------ #
     def _open(self, order: Order, price: float, when) -> None:
-        fill = self.execution.execute(order, reference_price=price)
+        fill = self.execution.execute(
+            order,
+            reference_price=price,
+            timestamp=when,
+            volatility_ratio=self._volatility_ratio(order.epic),
+            stress_multiplier=self.stress_multiplier,
+        )
         self.portfolio.open_position(
             fill, when, stop_loss=order.stop_loss, take_profit=order.take_profit
         )
@@ -275,7 +283,13 @@ class Backtester:
             size=self.portfolio.positions[epic].size,
             order_type=OrderType.MARKET,
         )
-        fill = self.execution.execute(closing, reference_price=price)
+        fill = self.execution.execute(
+            closing,
+            reference_price=price,
+            timestamp=when,
+            volatility_ratio=self._volatility_ratio(epic),
+            stress_multiplier=self.stress_multiplier,
+        )
         trade = self.portfolio.close_position(fill, when)
         self._fills += 1
         log.info(
@@ -283,6 +297,22 @@ class Backtester:
             extra={"epic": epic, "reason": reason, "pnl": round(trade.pnl, 2),
                    "price": round(fill.price, 5)},
         )
+
+    def _volatility_ratio(self, epic: str) -> float:
+        buf = self._history.get(epic) or []
+        if len(buf) < 30:
+            return 1.0
+        closes = [c.close for c in buf[-60:]]
+        returns = [abs(closes[i] - closes[i - 1]) for i in range(1, len(closes))]
+        if not returns:
+            return 1.0
+        short = returns[-14:] if len(returns) >= 14 else returns
+        long = returns
+        short_avg = sum(short) / len(short)
+        long_avg = sum(long) / len(long)
+        if long_avg <= 0:
+            return 1.0
+        return max(0.2, min(5.0, short_avg / long_avg))
 
 
 def _interleave(candles_by_epic: dict[str, list[Candle]]) -> list[Candle]:

@@ -141,7 +141,7 @@ python -m unittest discover -s tests
 
    ```bash
    forex-bot registry    # confirm the configured setup is candidate/forward-test/live
-   forex-bot demo
+   forex-bot demo --profile demo-safe
    ```
 
 7. Only after thorough demo validation, with reduced sizing and conservative
@@ -149,7 +149,14 @@ python -m unittest discover -s tests
 
    ```bash
    forex-bot preflight --environment live   # read-only sanity check on live
-   forex-bot live                           # LIVE — real funds at risk
+   forex-bot live --profile live-safe       # LIVE — real funds at risk
+   ```
+
+8. Validate deployment readiness and runtime health:
+
+   ```bash
+   forex-bot validate-env --environment demo
+   forex-bot dashboard
    ```
 
 > `--force` exists for operator recovery and deliberate overrides, not normal
@@ -490,11 +497,15 @@ The report also breaks out `trading_days`, `trades_per_day`, and `total_fees`.
 - This is a foundation, not a finished trading system. Phases 4–5 (extended demo
   soak, alerting, dashboards, a kill switch, broker-state reconciliation under
   failure) should be hardened before risking real capital.
+- Operator incident procedures live in `docs/runbooks/live-operations.md`.
 
 ## Security / Dependency scanning
 
-**You're missing a lockfile.**  
-To give Aikido a complete view of your dependencies and related vulnerabilities, please add and commit a lockfile (for example, `poetry.lock`, `Pipfile.lock`, or `requirements.txt` with pinned versions).
+- Lockfiles are managed with `pip-tools`:
+  - source inputs: `requirements.in`, `requirements-dev.in`
+  - generated locks: `requirements.lock`, `requirements-dev.lock`
+- CI enforces lockfile freshness (`pip-compile` diff check), runs dependency
+  vulnerability scanning (`pip-audit`), CodeQL analysis, and secret scanning.
 
 ## License
 

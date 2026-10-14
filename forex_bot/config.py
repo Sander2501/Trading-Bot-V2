@@ -146,6 +146,9 @@ class RiskConfig:
     # NOTE: enabling this mid-forward-test changes the strategy being tested —
     # it taints a pre-registered demo run. Set it BEFORE starting a test.
     max_spread_multiple: float | None = None
+    # Alert when equity changes by this fraction or more between consecutive
+    # candles (live only). Example: 0.03 = 3%.
+    pnl_drift_alert_pct: float = 0.03
 
 
 @dataclass
@@ -195,6 +198,11 @@ class CostConfig:
     spread_points: float = 0.0001  # absolute spread in price units
     commission_per_trade: float = 0.0
     slippage_points: float = 0.0
+    # Optional session multipliers keyed by: asia|london|newyork|overnight.
+    session_spread_multipliers: dict[str, float] = field(default_factory=dict)
+    session_slippage_multipliers: dict[str, float] = field(default_factory=dict)
+    # Extra slippage scaling on high-volatility bars (1.0 = no extra effect).
+    volatility_slippage_multiplier: float = 1.0
 
 
 @dataclass
@@ -212,6 +220,8 @@ class TradingConfig:
     # SQLite file for durable live state (positions + risk high-water mark).
     # null disables persistence (state is kept only in memory).
     state_db: str | None = None
+    # JSON file for live runtime telemetry (dashboard + alert counters).
+    telemetry_path: str = "data/db/telemetry.json"
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> TradingConfig:
@@ -238,4 +248,5 @@ class TradingConfig:
             optimize=data.get("optimize", {}),
             report=data.get("report", {}),
             state_db=data.get("state_db"),
+            telemetry_path=data.get("telemetry_path", "data/db/telemetry.json"),
         )

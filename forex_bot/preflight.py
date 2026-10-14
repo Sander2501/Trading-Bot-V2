@@ -127,8 +127,17 @@ def _test_order(client: Any, epic: str, creds: CapitalCredentials) -> list[Check
         ref = resp.get("dealReference")
         confirm = client.confirm_deal(ref) if ref else {}
         status = confirm.get("dealStatus") or confirm.get("status")
-        out.append(CheckResult("test order open", bool(ref),
-                               f"size={min_size} status={status} ref={ref}"))
+        if not ref:
+            out.append(CheckResult("test order open", False, "no dealReference returned"))
+            return out
+        state = str(status or "").upper()
+        if state in {"REJECTED", "DECLINED"}:
+            reason = confirm.get("rejectReason") or confirm.get("reason") or state
+            out.append(CheckResult("test order open", False,
+                                   f"size={min_size} status={state} reason={reason} ref={ref}"))
+            return out
+        out.append(CheckResult("test order open", True,
+                               f"size={min_size} status={status or 'UNKNOWN'} ref={ref}"))
         # Close by resolving the authoritative position dealId (the confirm
         # dealId is not reliably closeable).
         deal_id = client.resolve_position_deal_id(epic, deal_reference=ref)

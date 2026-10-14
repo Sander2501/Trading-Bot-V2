@@ -24,6 +24,7 @@ from .data.candle_builder import CandleBuilder
 from .execution.live import DealRejectedError, LiveExecution
 from .logging_setup import get_logger
 from .models import Candle, Order, Position, SignalType, _parse_ts
+from .monitoring import TelemetryStore
 from .risk.correlation import CorrelationModel
 from .risk.exposure import build_currency_map
 from .risk.manager import RiskManager
@@ -85,6 +86,9 @@ class LiveTradingEngine:
         # broken execution path must not keep firing orders at the broker.
         self._consec_exec_failures = 0
         self.exec_failure_limit = 5
+        self._last_equity_for_drift: float | None = None
+        self._telemetry_store = TelemetryStore(config.telemetry_path)
+        self._telemetry = self._telemetry_store.load()
 
     # ------------------------------------------------------------------ #
     def start(self) -> None:
@@ -109,6 +113,9 @@ class LiveTradingEngine:
     def _on_ws_reconnect(self) -> None:
         """Re-sync broker state after the price stream drops and recovers."""
         log.info("ws reconnected; reconciling positions")
+        self._telemetry.ws_reconnects += 1
+        self._telemetry.add_event("ws reconnect")
+        self._flush_telemetry()
         try:
             self._reconcile_positions()
         except Exception as exc:
@@ -139,9 +146,19 @@ class LiveTradingEngine:
 
     def _persist(self) -> None:
         if self.state is None:
+            self._flush_telemetry()
             return
         self.state.save_positions(list(self._positions.values()))
         self.state.save_risk_state(self.risk.snapshot())
+        self._flush_telemetry()
+
+    def _flush_telemetry(self) -> None:
+        self._telemetry.open_positions = len(self._positions)
+        self._telemetry.last_equity = self._equity
+        self._telemetry.peak_equity = max(self._telemetry.peak_equity, self._equity)
+        peak = self._telemetry.peak_equity or self._equity or 1.0
+        self._telemetry.drawdown_pct = ((peak - self._equity) / peak) * 100.0
+        self._telemetry_store.save(self._telemetry)
 
     def _reconcile_positions(self) -> None:
         """Make local positions match the broker (the source of truth).
@@ -222,6 +239,16 @@ class LiveTradingEngine:
         except Exception as exc:
             log.warning("equity refresh failed", extra={"error": str(exc)})
         self.risk.update_equity(when.date(), self._equity)
+        prev = self._last_equity_for_drift
+        if prev and prev > 0:
+            drift = abs(self._equity - prev) / prev
+            if drift >= self.config.risk.pnl_drift_alert_pct:
+                self._telemetry.pnl_drift_alerts += 1
+                self._telemetry.add_event(f"pnl drift alert {drift:.2%}")
+                log.warning("equity drift alert",
+                            extra={"previous": prev, "current": self._equity,
+                                   "drift_pct": round(drift * 100.0, 2)})
+        self._last_equity_for_drift = self._equity
 
     # ------------------------------------------------------------------ #
     def _on_price(self, update: dict) -> None:
@@ -269,6 +296,8 @@ class LiveTradingEngine:
             # Flatten once on the transition into the killed state.
             if not self._kill_flattened:
                 log.warning("kill switch tripped: flattening all positions")
+                self._telemetry.kill_switch_trips += 1
+                self._telemetry.add_event("kill switch tripped")
                 for ep in list(self._positions):
                     self._close(ep)
                 self._kill_flattened = True
@@ -345,6 +374,8 @@ class LiveTradingEngine:
         except DealRejectedError as exc:
             # Expected broker outcome (margin, closed market, size limits): no
             # position exists, nothing recorded locally; try again on a new signal.
+            self._telemetry.order_rejects += 1
+            self._telemetry.add_event(f"order rejected {candle.epic}: {exc.reason}")
             log.warning("entry rejected by broker",
                         extra={"epic": candle.epic, "reason": exc.reason})
         except Exception:
@@ -359,6 +390,8 @@ class LiveTradingEngine:
         except Exception:
             self._consec_exec_failures += 1
             if self._consec_exec_failures >= self.exec_failure_limit:
+                self._telemetry.execution_halts += 1
+                self._telemetry.add_event("execution halt limit reached")
                 log.error("execution failure limit reached; halting new entries "
                           "until restart",
                           extra={"consecutive_failures": self._consec_exec_failures,

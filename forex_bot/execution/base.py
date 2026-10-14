@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 
 from ..models import Order, Side
 
@@ -22,6 +23,14 @@ class Fill:
 
 class ExecutionEngine(ABC):
     @abstractmethod
-    def execute(self, order: Order, *, reference_price: float) -> Fill:
+    def execute(
+        self,
+        order: Order,
+        *,
+        reference_price: float,
+        timestamp: datetime | None = None,
+        volatility_ratio: float | None = None,
+        stress_multiplier: float = 1.0,
+    ) -> Fill:
         """Execute ``order`` and return the resulting :class:`Fill`."""
         raise NotImplementedError

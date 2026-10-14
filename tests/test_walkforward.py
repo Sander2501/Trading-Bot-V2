@@ -155,6 +155,8 @@ class TestWalkForward(unittest.TestCase):
         self.assertTrue(result.by_instrument)
         self.assertEqual(result.by_instrument[0].epic, "TEST")
         self.assertTrue(result.by_period)
+        self.assertGreaterEqual(result.param_stability_pct, 0.0)
+        self.assertLessEqual(result.param_stability_pct, 100.0)
 
 
     def test_in_sample_selector_limits_each_fold(self):
@@ -212,4 +214,3 @@ class TestWalkForward(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
