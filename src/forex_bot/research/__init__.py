@@ -23,7 +23,6 @@ from .registry import (
     setup_key,
 )
 from .strategy_report import (
-    METRIC_ORDER,
     RESEARCH_METRICS,
     StrategyReportRow,
     Verdict,
