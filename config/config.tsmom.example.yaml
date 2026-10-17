@@ -1,0 +1,90 @@
+# Time-series momentum (TSMOM) on daily bars. Copy to config/config.yaml to use.
+#
+#   forex-bot download            # daily bars (needs several years: see data note below)
+#   forex-bot optimize --strategy tsmom     # fixed-rule rolling out-of-sample test
+#   forex-bot report --strategy tsmom
+#   forex-bot holdout --strategy tsmom      # ONE shot; then `optimize --cost-stress`
+#
+# DATA NOTE: the first signal needs 253 daily bars, and a Sharpe ratio measured on
+# T days of portfolio returns cannot resolve an edge smaller than roughly
+# 2.49 * sqrt(252 / T) (annualized, 80% power). With ~1,000 live days that is
+# about 1.25: if the true edge is below that, a backtest cannot confirm it, so
+# a "PASS" is weak evidence and a "FAIL" is not proof of no edge. Use
+# forex_bot.research.min_detectable_sharpe(T) to state this before trusting a result.
+
+starting_equity: 10000.0
+
+# One entry per pair. spread_points are PLACEHOLDERS: run `forex-bot spreads` and
+# paste the real values. Note the JPY pip is 0.01, not 0.0001.
+instruments:
+  - {epic: EURUSD, timeframe: DAY, spread_points: 0.0001}
+  - {epic: GBPUSD, timeframe: DAY, spread_points: 0.0001}
+  - {epic: AUDUSD, timeframe: DAY, spread_points: 0.0001}
+  - {epic: NZDUSD, timeframe: DAY, spread_points: 0.0001}
+  - {epic: USDCAD, timeframe: DAY, spread_points: 0.0001}
+  - {epic: USDCHF, timeframe: DAY, spread_points: 0.0001}
+  - {epic: USDJPY, timeframe: DAY, spread_points: 0.01}
+  - {epic: EURGBP, timeframe: DAY, spread_points: 0.0001}
+
+state_db: data/db/state.sqlite
+telemetry_path: data/db/telemetry.json
+
+strategy: tsmom
+strategy_params:
+  lookbacks: [21, 63, 252]   # ~1M / 3M / 12M trading days; not fitted, do not grid these
+  rebalance: weekly          # one decision per ISO week (stateless, timestamp-based)
+  atr_period: 14
+  atr_stop_mult: null        # no stop (classic TSMOM exits on reversal). A wide stop,
+                             # e.g. 4.0, is a separate variant: record it as another trial.
+  required_timeframe: DAY    # refuses intraday bars: lookbacks are counted in bars
+
+# Walk-forward on DAILY bars. is_bars must be well above 252 or the in-sample
+# window is mostly warmup; warmup_bars must be >= 260 so OOS bars are not idle.
+# The grid is a single point (see DEFAULT_GRIDS), so this is a rolling
+# out-of-sample evaluation, not an optimization.
+optimize:
+  is_bars: 750
+  oos_bars: 250
+  step_bars: 250
+  metric: sharpe
+  warmup_bars: 300
+  min_trades: 5
+
+# Rejection thresholds: defaults apply. NOTE min_trades: 40 can fail a low-turnover
+# daily strategy on sample size alone; that is the gate working, not a bug.
+report: {}
+
+costs:
+  spread_points: 0.0001      # fallback only; per-instrument values above win
+  commission_per_trade: 0.0
+  slippage_points: 0.00002
+
+risk:
+  # vol_target makes each pair contribute similar risk (the signal carries ATR).
+  # fixed_fractional with no stop would just size every pair at the notional cap.
+  sizing_mode: vol_target
+  vol_target_pct: 0.003      # a 1-ATR move on a position = 0.3% of equity
+  max_position_pct: 0.20
+
+  # CRITICAL: always-in-market across a basket needs a slot for every pair.
+  # A smaller cap silently trades only the alphabetically-first pairs.
+  max_open_positions: 8
+
+  # Six of these eight pairs are USD legs, so they stack into one USD bet. This
+  # cap vetoes entries once net exposure to a single currency passes 100% of
+  # equity, which means some pairs will be skipped when the signals line up.
+  # That is risk control, but it changes the strategy under test: keep it
+  # identical across every run you compare. Set 10.0 to measure the raw signal.
+  max_currency_exposure_pct: 1.0
+  max_positions_per_currency: null
+
+  # Leave null for backtests: the engine estimates correlation groups from the
+  # whole candle set up front, so enabling it lets future data shape the groups.
+  correlation_threshold: null
+
+  max_daily_loss_pct: 0.05
+  max_leverage: 30.0
+  max_total_drawdown_pct: 0.15
+  drawdown_peak_window_bars: null
+  max_spread_multiple: null
+  pnl_drift_alert_pct: 0.03

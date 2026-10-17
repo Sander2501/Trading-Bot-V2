@@ -130,7 +130,15 @@ def compute_metrics(
         total_fees=total_fees,
         avg_fee_per_trade=(total_fees / n) if n else 0.0,
     )
+def daily_returns(equity_curve: Sequence[tuple[datetime, float]]) -> list[float]:
+    """Calendar-day returns of an equity curve (one value per UTC day).
 
+    The same series that drives the Sharpe/Sortino figures in
+    :func:`compute_metrics`, exposed so significance tools (deflated Sharpe,
+    bootstrap) operate on exactly the returns those statistics came from.
+    """
+    daily = _resample_daily(equity_curve)
+    return _period_returns([e for _, e in daily])
 
 # --------------------------------------------------------------------------- #
 def _resample_daily(curve: Sequence[tuple[datetime, float]]) -> list[tuple[date, float]]:

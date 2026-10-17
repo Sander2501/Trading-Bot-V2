@@ -86,6 +86,10 @@ DEFAULT_GRIDS: dict[str, dict[str, list]] = {
         "min_abs_trend": [0.01, 0.02],
         "carry_weight": [0.0],
     },
+    "tsmom": {
+        "lookbacks": [(21, 63, 252)],
+        "rebalance": ["weekly"],
+    },
 }
 
 

@@ -13,6 +13,7 @@ from .portfolio_base import PortfolioContext, PortfolioStrategy
 from .rsi_reversion import RsiReversionStrategy
 from .smc import SmcMarketAnalyzer, SmcSweepReversalStrategy
 from .spread_reversion import SpreadReversionStrategy
+from .tsmom import TsmomStrategy
 
 # Registry of available strategies keyed by config name. Values may be
 # single-instrument (StrategyBase) or multi-instrument (PortfolioStrategy); the
@@ -25,6 +26,7 @@ STRATEGY_REGISTRY: dict[str, type] = {
     "sweep_reversal": SmcSweepReversalStrategy,
     "xsec_momentum": CrossSectionalMomentumStrategy,
     "carry_trend_basket": CarryTrendBasketStrategy,
+    "tsmom": TsmomStrategy,
 }
 
 
@@ -54,4 +56,5 @@ __all__ = [
     "CarryTrendBasketStrategy",
     "STRATEGY_REGISTRY",
     "build_strategy",
+    "TsmomStrategy",
 ]
