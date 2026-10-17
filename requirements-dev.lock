@@ -57,8 +57,6 @@ pathspec==1.1.1
     # via mypy
 pip-api==0.0.35
     # via pip-audit
-typing-extensions==4.16.0
-    # via mypy
 pip-audit==2.9.0
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
@@ -107,16 +105,14 @@ sortedcontainers==2.4.0
 toml==0.10.2
     # via pip-audit
 typing-extensions==4.16.0
-    # via
-    #   exceptiongroup
-    #   mypy
-    #   pip-tools
+    # via mypy
 urllib3==2.6.3
     # via requests
 websocket-client==1.9.0
     # via -r requirements.in
 wheel==0.48.0
     # via pip-tools
+
 # The following packages are considered to be unsafe in a requirements file:
 # pip
 # setuptools
