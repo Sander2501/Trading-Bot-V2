@@ -29,7 +29,7 @@ and infrastructure.
 ## Architecture
 
 ```
-forex_bot/
+src/forex_bot/
 ├── models.py            Typed domain models: Candle, Signal, Order, Position, Trade
 ├── config.py            Credentials (.env) + trading/risk config (YAML)
 ├── logging_setup.py     Structured key=value logging
@@ -291,7 +291,7 @@ class MyStrategy(StrategyBase):
         return Signal(candle.epic, SignalType.ENTER_LONG, candle.timestamp)
 ```
 
-Add it to `STRATEGY_REGISTRY` in `forex_bot/strategy/__init__.py`, then select it
+Add it to `STRATEGY_REGISTRY` in `src/forex_bot/strategy/__init__.py`, then select it
 by name in `config.yaml`.
 
 ### Reducing whipsaw (EMA crossover)
@@ -423,7 +423,7 @@ python scripts/generate_sample_data.py --epic TREND --bars 3000 --mode trending
 config and writes a single comparable table — OOS return, PF, positive folds,
 trades, avg R, worst month, worst fold, per-instrument contribution, and a
 **deterministic PASS/FAIL verdict** — to `results/strategy_report.{csv,md}`
-(gitignored). The verdict rules live in `forex_bot/research/verdicts.py` and are
+(gitignored). The verdict rules live in `src/forex_bot/research/verdicts.py` and are
 config-driven via a `report:` block with strict defaults, so rejection is
 mechanical, not vibes.
 

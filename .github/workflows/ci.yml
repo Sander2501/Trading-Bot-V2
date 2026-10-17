@@ -47,7 +47,7 @@ jobs:
           pip install -r requirements-dev.lock
 
       - name: Ruff lint
-        run: ruff check forex_bot tests
+        run: ruff check src/forex_bot tests
 
   typecheck:
     runs-on: ubuntu-latest
@@ -69,11 +69,11 @@ jobs:
       - name: Mypy
         run: >
           mypy --follow-imports=skip
-          forex_bot/live_engine.py
-          forex_bot/preflight.py
-          forex_bot/execution/simulated.py
-          forex_bot/startup_checks.py
-          forex_bot/monitoring.py
+          src/forex_bot/live_engine.py
+          src/forex_bot/preflight.py
+          src/forex_bot/execution/simulated.py
+          src/forex_bot/startup_checks.py
+          src/forex_bot/monitoring.py
 
   test:
     runs-on: ubuntu-latest

@@ -42,12 +42,13 @@ dev = [
 forex-bot = "forex_bot.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["forex_bot*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
