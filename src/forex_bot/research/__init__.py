@@ -45,7 +45,6 @@ __all__ = [
     "generate_strategy_report",
     "StrategyReportRow",
     "Verdict",
-    "METRIC_ORDER",
     "RESEARCH_METRICS",
     "ResearchRegistry",
     "SetupRecord",
