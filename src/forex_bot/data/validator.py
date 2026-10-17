@@ -20,7 +20,7 @@ def validate_candle_continuity(
     if len(candles) < 2:
         return True
     expected_delta = timedelta(minutes=timeframe_minutes)
-    for previous, current in zip(candles, candles[1:]):
+    for previous, current in zip(candles, candles[1:], strict=False):
         previous_time = previous["timestamp"]
         current_time = current["timestamp"]
         if not isinstance(previous_time, datetime) or not isinstance(current_time, datetime):
