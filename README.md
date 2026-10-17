@@ -159,6 +159,21 @@ python -m unittest discover -s tests
    forex-bot dashboard
    ```
 
+### Docker deployment
+
+The bot can also run as a restartable demo container. Copy `.env.example` to
+`.env`, provide the Capital.com and optional Telegram credentials, then start
+the service:
+
+```bash
+docker compose up -d --build
+docker compose logs -f trading-bot
+```
+
+The compose configuration persists `data/` and `logs/` on the host. The
+default command is the conservative demo profile; change it only after
+completing the preflight and demo validation steps above.
+
 > `--force` exists for operator recovery and deliberate overrides, not normal
 > research flow. If a setup is frozen, the correct fix is usually to change the
 > strategy/timeframe/universe and re-screen, not to bypass the ledger.

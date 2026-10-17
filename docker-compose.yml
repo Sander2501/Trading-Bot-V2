@@ -1,0 +1,13 @@
+services:
+  trading-bot:
+    build: .
+    container_name: trading_bot_v2
+    restart: unless-stopped
+    environment:
+      CAPITAL_API_KEY: ${CAPITAL_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: ["demo", "--profile", "demo-safe"]

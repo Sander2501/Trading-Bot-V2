@@ -8,7 +8,7 @@ Applies a configurable cost model:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 
 from ..config import CostConfig, InstrumentSpecs
 from ..models import Order, Side
@@ -41,6 +41,7 @@ class SimulatedExecution(ExecutionEngine):
             if session and self.costs.session_slippage_multipliers
             else 1.0
         )
+        spread = calculate_dynamic_spread(order.epic, timestamp, spread)
         spread *= spread_mult * max(stress_multiplier, 0.0)
         half_spread = spread / 2.0
         slip = self.costs.slippage_points * slip_mult * max(stress_multiplier, 0.0)
@@ -68,3 +69,18 @@ def _session_name(hour: int) -> str:
     if 13 <= hour < 22:
         return "newyork"
     return "overnight"
+
+
+def calculate_dynamic_spread(
+    symbol: str, current_time_utc: datetime | None, base_spread: float
+) -> float:
+    """Widen FX spreads during the daily rollover and Friday close."""
+    del symbol
+    if current_time_utc is None:
+        return base_spread
+    current_time = current_time_utc.time()
+    if time(21, 55) <= current_time <= time(22, 15):
+        return base_spread * 7.0
+    if current_time_utc.weekday() == 4 and current_time_utc.hour >= 21:
+        return base_spread * 5.0
+    return base_spread

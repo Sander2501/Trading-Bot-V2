@@ -11,6 +11,8 @@ import logging
 import sys
 from typing import Any
 
+from .utils.telegram import TelegramLoggingHandler
+
 
 class KeyValueFormatter(logging.Formatter):
     """Formats records as ``ts level logger msg key=value ...``."""
@@ -47,6 +49,9 @@ def setup_logging(level: str = "INFO") -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
+    telegram_handler = TelegramLoggingHandler()
+    telegram_handler.setLevel(logging.WARNING)
+    root.addHandler(telegram_handler)
 
 
 def get_logger(name: str) -> logging.Logger:

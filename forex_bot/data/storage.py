@@ -14,6 +14,7 @@ from pathlib import Path
 from ..logging_setup import get_logger
 from ..models import Candle, _parse_ts
 from .candle_builder import timeframe_to_seconds
+from .validator import validate_candle_continuity
 
 log = get_logger(__name__)
 
@@ -63,6 +64,13 @@ class CandleStore:
                         volume=float(row["volume"]),
                     )
                 )
+        step_minutes = timeframe_to_seconds(timeframe) // 60
+        if not validate_candle_continuity(
+            [{"timestamp": candle.timestamp} for candle in out], step_minutes
+        ):
+            raise ValueError(
+                f"non-weekend candle gap detected in {path}; refusing to load data"
+            )
         return out
 
     # ------------------------------------------------------------------ #
